@@ -1,4 +1,4 @@
-streamlit-folium
+streamlit
 folium
-streamlit-js-eval
+streamlit-folium
 
