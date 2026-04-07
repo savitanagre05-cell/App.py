@@ -132,4 +132,4 @@ with c1:
 with c2:
     if st.button("🚕"): st.session_state.page = "🚕 Book"; st.rerun()
 with c3:
-    if st.button("⚙️"): st.session_state.page = "⚙️ Settings"; st.rerun()
+    if st.button("⚙️"): st.session_state.page = "⚙️ Settings"; st.rerun() 
