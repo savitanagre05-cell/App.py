@@ -1,89 +1,132 @@
-import streamlit as st
 
-# १. अ‍ॅपची प्राथमिक मांडणी (Setup)
-st.set_page_config(page_title="Balaji Logistics", page_icon="🚖", layout="centered")
-
-# २. ब्रँडिंग आणि नाव
-st.sidebar.image("https://img.icons8.com/color/144/000000/suv.png", width=100)
-st.sidebar.title("Balaji Travels")
-st.sidebar.info("📞 बुकिंग: 9767981986\n\n💬 सपोर्ट: 8605520369")
-
-st.title("🚩 Balaji Logistics and Tours and Travels")
-st.markdown("### **All India Outstation Car Booking**")
-st.info("🚗 आमची सेवा: T-Permit | 6+7 Seater | दर: ₹13/किमी + टोल आणि पार्किंग")
-
-# ३. नेव्हिगेशन मेनू
-menu = ["Home", "Book A Ride", "Price Estimator", "My Account", "Help & Support", "Admin Panel"]
-choice = st.sidebar.selectbox("मेनू निवडा", menu)
-
-# ४. होम स्क्रीन
-if choice == "Home":
-    st.write("#### आमच्या सुविधा:")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("✅ **२४/७ उपलब्ध**")
-        st.write("✅ **ऑल इंडिया परमिट**")
-    with col2:
-        st.write("✅ **अनुभवी ड्रायव्हर**")
-        st.write("✅ **स्वच्छ गाड्या (6+7 Seater)**")
-    
-    st.markdown("---")
-    st.write("### बुकिंगसाठी दोन सोपे पर्याय:")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.button("🚕 Outstation (One Way)")
-    with c2:
-        st.button("🔄 Outstation (Round Trip)")
-
-# ५. Price Estimator (नवीन फीचर)
-elif choice == "Price Estimator":
-    st.header("📊 भाड्याचा अंदाज")
-    kms = st.number_input("अंदाजित किलोमीटर (येणे-जाणे मिळून)", min_value=1, value=100)
-    total_price = kms * 13
-    st.metric(label="अंदाजित भाडे", value=f"₹{total_price}")
-    st.caption("*टोल, पार्किंग आणि बॉर्डर टॅक्स अतिरिक्त असेल.")
-
-# ६. बुकिंग विभाग (WhatsApp Integration सह)
-elif choice == "Book A Ride":
-    st.header("📝 तुमची राईड बुक करा")
-    with st.form("booking_form"):
-        name = st.text_input("पूर्ण नाव")
-        mobile = st.text_input("मोबाईल नंबर")
-        aadhar = st.text_input("आधार कार्ड नंबर")
-        pickup = st.text_input("कुठून (Pickup Point)")
-        drop = st.text_input("कुठे (Destination)")
-        date = st.date_input("प्रवासाची तारीख")
-        
-        submit = st.form_submit_button("Book Ride Now")
-        
-        if submit:
-            if name and mobile and pickup:
-                msg = f"नवीन बुकिंग! \nनाव: {name} \nमोबाईल: {mobile} \nआधार: {aadhar} \nPickup: {pickup} \nDrop: {drop} \nतारीख: {date}"
-                whatsapp_url = f"https://wa.me/919767981986?text={msg.replace(' ', '%20')}"
-                st.success(f"धन्यवाद {name}! तुमची माहिती सबमिट झाली आहे.")
-                st.markdown(f"**[✅ बुकिंग पूर्ण करण्यासाठी येथे क्लिक करा (WhatsApp)]({whatsapp_url})**")
-                st.balloons()
-            else:
-                st.error("कृपया सर्व माहिती भरा!")
-
-# ७. हेल्प आणि सपोर्ट
-elif choice == "Help & Support":
-    st.header("📞 हेल्प आणि सपोर्ट")
-    st.success("संपर्क क्रमांक: 8605520369 / 9767981986")
-    st.write("काही अडचण असल्यास किंवा चौकशीसाठी वरील नंबरवर संपर्क साधा.")
-
-# ८. अ‍ॅडमिन पॅनेल
-elif choice == "Admin Panel":
-    st.header("🔒 अ‍ॅडमिन लॉगिन")
-    user_pass = st.text_input("पासवर्ड टाका", type="password")
-    if user_pass == "balaji123":
-        st.success("लॉगिन यशस्वी!")
-        st.write("बुकिंगचा डेटा लवकरच येथे दिसेल.")
-    elif user_pass:
-        st.error("पासवर्ड चुकीचा आहे!")
-
-# ९. माय अकाउंट
-elif choice == "My Account":
-    st.header("👤 ग्राहकाची माहिती")
-    st.write("येथे तुमची प्रोफाईल आणि बुकिंग हिस्ट्री दिसेल (लवकरच).")
   
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
+# १. अ‍ॅपचे नाव आणि पेज सेटिंग (Uber Style)
+st.set_page_config(page_title="Balaji Logistics", page_icon="🚕", layout="centered")
+
+# २. Uber Premium CSS (रंग आणि डिझाइन बदलणे)
+st.markdown("""
+    <style>
+    /* पूर्ण बॅकग्राउंड पांढरा */
+    .stApp { background-color: #FFFFFF; }
+    
+    /* टायटल आणि अक्षरे काळी */
+    h1, h2, h3, p, label {
+        color: #000000 !important;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+    
+    /* Uber Black Button */
+    .stButton>button {
+        width: 100%;
+        background-color: #000000;
+        color: #FFFFFF;
+        border: none;
+        padding: 18px;
+        font-size: 18px;
+        font-weight: bold;
+        border-radius: 4px;
+        transition: 0.3s;
+        text-transform: uppercase;
+    }
+    
+    .stButton>button:hover {
+        background-color: #333333;
+        color: #FFFFFF;
+    }
+
+    /* भाड्याचा बॉक्स (Grey Box) */
+    .fare-container {
+        background-color: #f3f3f3;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #e2e2e2;
+        margin: 20px 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ३. मुख्य टायटल
+st.title("🚕 Balaji Logistics")
+st.write("तुमचा विश्वसनीय प्रवास सोबती")
+
+# ४. नकाशा (Professional Map View)
+df = pd.DataFrame({'lat': [19.9975], 'lon': [73.7898]}) # नाशिकचे लोकेशन
+st.map(df)
+
+st.divider()
+
+# ५. प्रवासाची माहिती (Inputs)
+st.subheader("📍 राईड बुक करा")
+col1, col2 = st.columns(2)
+with col1:
+    pickup = st.text_input("Pick-up Location", placeholder="उदा. नाशिक")
+with col2:
+    drop = st.text_input("Drop Location", placeholder="उदा. मुंबई")
+
+# ६. गाडीची निवड आणि वेगवेगळे दर (Rates)
+st.write("---")
+st.subheader("गाडी निवडा")
+
+car_rates = {
+    "🚗 Balaji Go (Mini) - ₹11/km": 11,
+    "🚖 Balaji Sedan - ₹14/km": 14,
+    "🚐 Balaji SUV (6+1) - ₹17/km": 17
+}
+
+selected_car = st.radio("उपलब्ध पर्याय:", list(car_rates.keys()))
+
+# ७. किलोमीटर आणि भाड्याचे गणित
+km = st.number_input("अंदाजित अंतर (KM)", min_value=1, value=50)
+current_rate = car_rates[selected_car]
+total_fare = km * current_rate
+
+# ८. भाड्याचा डिस्प्ले (Uber Style)
+st.markdown(f"""
+    <div class="fare-container">
+        <h2 style='margin:0; color:black;'>₹{total_fare}</h2>
+        <p style='margin:0; color:gray;'>अंदाजित भाडे (दर: ₹{current_rate}/किमी)</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.write("---")
+
+# ९. कस्टमर डिटेल्स
+name = st.text_input("तुमचे नाव")
+phone = st.text_input("तुमचा मोबाईल नंबर")
+
+# तुमचा नंबर इथे सेट केला आहे
+MY_NUMBER = "9767981986"
+
+if st.button("CONFIRM BOOKING"):
+    if name and phone and pickup and drop:
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        
+        # व्हॉट्सॲप मेसेजचा फॉरमॅट
+        msg = (f"🚩 *BALAJI LOGISTICS BOOKING*\n"
+               f"--------------------------\n"
+               f"👤 नाव: {name}\n"
+               f"📞 मोबाईल: {phone}\n"
+               f"📍 पिकअप: {pickup}\n"
+               f"🏁 ड्रॉप: {drop}\n"
+               f"🚗 गाडी: {selected_car.split(' - ')[0]}\n"
+               f"🛣️ दर: ₹{current_rate}/km\n"
+               f"💰 एकूण भाडे: ₹{total_fare}\n"
+               f"⏰ वेळ: {current_time}")
+        
+        # WhatsApp URL
+        whatsapp_url = f"https://wa.me/91{MY_NUMBER}?text={msg.replace(' ', '%20').replace('\n', '%0A')}"
+        
+        st.balloons()
+        st.success("तुमची राईड कन्फर्म झाली आहे! व्हॉट्सॲपवर बुकिंग पाठवा.")
+        st.markdown(f"### [👉 येथे क्लिक करा आणि मेसेज पाठवा]({whatsapp_url})")
+    else:
+        st.error("कृपया सर्व माहिती अचूक भरा!")
+
+# १०. साईडबार सपोर्ट
+st.sidebar.markdown(f"### 📞 मदत केंद्र")
+st.sidebar.write(f"संपर्क: {MY_NUMBER}")
+st.sidebar.info("आमच्या सर्व गाड्या सॅनिटाईझ केलेल्या आणि ड्रायव्हर्स अनुभवी आहेत.")
