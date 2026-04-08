@@ -1,4 +1,4 @@
-
+ 
  
 
    import streamlit as st
@@ -97,4 +97,4 @@ def show_main_app():
 if not st.session_state.is_auth:
     show_login()
 else:
-    show_main_app() 
+    show_main_app()
