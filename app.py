@@ -1,156 +1,104 @@
-
 import streamlit as st
 import random
+import time
+import urllib.parse
 import folium
 from streamlit_folium import st_folium
 
-# --- १. अ‍ॅप कॉन्फिगरेशन (नेहमी पहिल्या ओळीवर हवे) ---
-st.set_page_config(
-    page_title="Balaji Logistics Nashik", 
-    layout="centered", 
-    page_icon="🚕"
-)
+# --- १. अ‍ॅप कॉन्फिगरेशन ---
+st.set_page_config(page_title="Balaji Logistics", layout="centered", page_icon="🚕")
 
-# --- २. सेशन स्टेट मॅनेजमेंट (डेटा टिकवण्यासाठी) ---
-if "is_auth" not in st.session_state:
-    st.session_state.is_auth = False
-if "user_name" not in st.session_state:
-    st.session_state.user_name = ""
-if "ride_booked" not in st.session_state:
-    st.session_state.ride_booked = False
-if "current_fare" not in st.session_state:
-    st.session_state.current_fare = 0
-if "target_loc" not in st.session_state:
-    st.session_state.target_loc = ""
+# --- २. तुझे अधिकृत डिटेल्स ---
+MY_NO = "9767981986"  
+PAYMENT_NO = "9309146504"
 
-# --- ३. कस्टम CSS (डिझाईनसाठी) ---
-st.markdown("""
+# --- ३. सेशन स्टेट ---
+if "is_auth" not in st.session_state: st.session_state.is_auth = False
+if "user_data" not in st.session_state: st.session_state.user_data = {}
+if "step" not in st.session_state: st.session_state.step = "search" 
+if "history" not in st.session_state: st.session_state.history = []
+if "dist_left" not in st.session_state: st.session_state.dist_left = 5.0
+
+# --- ४. प्रीमियम डिझाईन (CSS) ---
+st.markdown(f"""
 <style>
-    /* मुख्य बॅकग्राउंड */
-    .stApp { background-color: #f4f7f6; }
-    
-    /* हेडर स्टाईल */
-    .main-header {
-        text-align: center;
-        background: linear-gradient(90deg, #000000, #333333);
-        color: white;
-        padding: 20px;
-        border-radius: 0px 0px 25px 25px;
-        margin-bottom: 25px;
-    }
-    
-    /* कार्ड स्टाईल */
-    .info-card {
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0px 4px 12px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-    
-    /* बटण स्टाईल */
-    .stButton>button {
-        width: 100%;
-        background-color: #000 !important;
-        color: white !important;
-        border-radius: 10px;
-        height: 48px;
-        font-size: 16px;
-        font-weight: bold;
-        border: none;
-    }
-    
-    .stButton>button:hover {
-        background-color: #222 !important;
-        border: 1px solid gold;
-    }
+    .stApp {{ background-color: #ffffff; }}
+    .main-header {{ background: #000; color: #fff; padding: 25px; text-align: center; border-radius: 0 0 25px 25px; margin-top: -65px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }}
+    .card {{ border: 1px solid #eee; padding: 18px; border-radius: 15px; margin-bottom: 12px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }}
+    .notif-bar {{ background: #f0f2f6; padding: 10px; border-radius: 8px; border-left: 5px solid #000; margin-bottom: 15px; font-size: 14px; animation: flash 2s infinite; }}
+    @keyframes flash {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.5; }} 100% {{ opacity: 1; }} }}
+    .btn-call {{ display: block; width: 100%; background: black; color: white !important; text-align: center; padding: 12px; border-radius: 10px; text-decoration: none; font-weight: bold; margin-bottom: 10px; }}
+    .btn-wa {{ display: block; width: 100%; background: #25D366; color: white !important; text-align: center; padding: 12px; border-radius: 10px; text-decoration: none; font-weight: bold; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- ४. लॉगिन / नोंदणी फंक्शन ---
-def show_login():
-    st.markdown("<div class='main-header'><h1>Balaji Logistics</h1><p>नाशिकची आपली हक्काची टॅक्सी</p></div>", unsafe_allow_html=True)
-    
-    with st.container():
-        st.subheader("प्रवेश करा / नोंदणी करा 🔑")
-        name = st.text_input("तुमचे नाव (Full Name)")
-        phone = st.text_input("मोबाईल नंबर (10 Digit Mobile)", max_chars=10)
-        
-        if st.button("सुरू करा ➔"):
-            if name and len(phone) == 10 and phone.isdigit():
-                st.session_state.user_name = name
-                st.session_state.is_auth = True
-                st.success(f"स्वागत आहे, {name}!")
-                st.rerun()
-            else:
-                st.error("कृपया वैध नाव आणि १० अंकी नंबर टाका!")
-
-# --- ५. मुख्य होम स्क्रीन फंक्शन ---
-def show_home():
-    # Sidebar नेव्हिगेशन
-    with st.sidebar:
-        st.title("🚖 मेनू")
-        choice = st.radio("पर्याय निवडा", ["🏠 होम", "📜 प्रवासाचा इतिहास", "👤 प्रोफाइल"])
-        st.write("---")
-        if st.button("Logout 🚪"):
-            st.session_state.is_auth = False
+# --- ५. लॉगिन / रजिस्ट्रेशन स्क्रीन ---
+def show_registration():
+    st.markdown('<div class="main-header"><h1>BALAJI</h1><p>Logistics & Rides</p></div>', unsafe_allow_html=True)
+    st.markdown("### 📝 तुमचे खाते तयार करा")
+    name = st.text_input("पूर्ण नाव", placeholder="उदा. सर्वज्ञ")
+    phone = st.text_input("मोबाईल नंबर", max_chars=10, placeholder="98XXXXXXXX")
+    if st.button("सुरू करा ➔"):
+        if name and len(phone) == 10:
+            st.session_state.user_data = {"name": name, "phone": phone, "joined": "April 2026"}
+            st.session_state.is_auth = True
             st.rerun()
+        else: st.error("नाव आणि १० अंकी नंबर आवश्यक!")
+# --- ६. मुख्य होम स्क्रीन ---
+def show_main():
+    st.markdown(f"#### नमस्कार, {st.session_state.user_data['name']}! 👋")
+    st.markdown('<div class="notif-bar">🔔 Balaji Logistics: २४/७ सेवा उपलब्ध!</div>', unsafe_allow_html=True)
+    tab1, tab2, tab3 = st.tabs(["🏠 Home", "🕒 Activity", "👤 Account"])
+    with tab1:
+        st.write("📍 तुमचे लोकेशन:")
+        m = folium.Map(location=[19.9975, 73.7898], zoom_start=13)
+        folium.Marker([19.9975, 73.7898], icon=folium.Icon(color='black', icon='car', prefix='fa')).add_to(m)
+        st_folium(m, height=220, width=700)
+        pickup = st.text_input("📍 पिकअप", value="Nashik City")
+        drop = st.text_input("🏁 डेस्टिनेशन")
+        st.write("🚗 गाडी निवडा:")
+        col1, col2 = st.columns(2)
+        dist = random.randint(6, 14)
+        fare_go, fare_suv = dist * 13, dist * 20
+        with col1:
+            st.image("https://img.freepik.com/premium-vector/white-sedan-car-isolated-white-background_53876-64415.jpg", width=110)
+            go = st.button(f"Book Go\n₹{fare_go}")
+        with col2:
+            st.image("https://img.freepik.com/premium-vector/black-suv-car-isolated-white-background_53876-64417.jpg", width=110)
+            suv = st.button(f"Book SUV\n₹{fare_suv}")
+        if (go or suv) and drop:
+            v_name = "Balaji Go 🚗" if go else "Balaji SUV 🚐"
+            f_val = fare_go if go else fare_suv
+            call_u = f"tel:{st.session_state.user_data['phone']}"
+            msg = (f"🚕 *नवीन बुकिंग!* \n👤 नाव: {st.session_state.user_data['name']} \n📍 पिकअप: {pickup} \n📍 ड्रॉप: {drop} \n🚗 गाडी: {v_name} \n💰 भाडे: ₹{f_val} \n📞 कॉल: {call_u}")
+            st.session_state.wa_link = f"https://wa.me/91{MY_NO}?text={urllib.parse.quote(msg)}"
+            st.session_state.current_ride = {"dest": drop, "fare": f_val, "veh": v_name}
+            st.session_state.step = "matching"; st.rerun()
+    with tab2:
+        for r in reversed(st.session_state.history):
+            st.markdown(f"<div class='card'><b>{r['dest']}</b><br>₹{r['fare']}</div>", unsafe_allow_html=True)
+    with tab3:
+        st.write(f"👤 {st.session_state.user_data['name']}"); st.button("Log Out", on_click=lambda: st.session_state.update({"is_auth": False}))
 
-    if choice == "🏠 होम":
-        st.markdown(f"### नमस्कार, {st.session_state.user_name}! 👋")
-        
-        # मॅप डिस्प्ले
-        st.write("तुमचे लोकेशन (नाशिक):")
-        m = folium.Map(location=[20.0022, 73.7898], zoom_start=13)
-        folium.Marker([20.0022, 73.7898], popup="You are here", icon=folium.Icon(color='black', icon='home')).add_to(m)
-        st_folium(m, width="100%", height=250, key="nashik_map")
-        
-        # बुकिंग कार्ड
-        st.markdown("<div class='info-card'>", unsafe_allow_html=True)
-        st.subheader("नवीन राईड बुक करा")
-        dest = st.text_input("कुठे जायचे आहे? (Destination)", placeholder="उदा. नाशिक रोड, पंचवटी, सीबीएस")
-        car_type = st.selectbox("गाडी निवडा", ["🚗 Mini (₹12/km)", "🚖 Sedan (₹15/km)", "🚐 SUV (₹22/km)"])
-        
-        # भाडे कॅल्क्युलेशन लॉजिक
-        dist_est = random.randint(4, 12)
-        base_rates = {"🚗 Mini (₹12/km)": 12, "🚖 Sedan (₹15/km)": 15, "🚐 SUV (₹22/km)": 22}
-        total_fare = dist_est * base_rates[car_type]
-        
-        st.info(f"अंदाजे अंतर: {dist_est} किमी | अंदाजे भाडे: **₹{total_fare}**")
-        
-        if st.button("बुक करा ✅"):
-            if dest:
-                st.session_state.ride_booked = True
-                st.session_state.target_loc = dest
-                st.session_state.current_fare = total_fare
-                st.balloons()
-            else:
-                st.warning("कृपया डेस्टिनेशन टाका!")
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        # राईड स्टेटस
-        if st.session_state.ride_booked:
-            st.success(f"✅ राईड कन्फर्म झाली आहे!\n\n🚕 **गाडी:** {car_type}\n📍 **डेस्टिनेशन:** {st.session_state.target_loc}\n💰 **भाडे:** ₹{st.session_state.current_fare}")
-            if st.button("प्रवास पूर्ण झाला? 🏁"):
-                st.session_state.ride_booked = False
-                st.rerun()
+# --- ७. प्रोसेस स्क्रीन्स ---
+def show_process():
+    if st.session_state.step == "matching":
+        st.markdown(f'<a href="{st.session_state.wa_link}" target="_blank" class="btn-wa">WhatsApp वर मेसेज पाठवा 💬</a>', unsafe_allow_html=True)
+        if st.button("मेसेज पाठवला आहे ✅"): st.session_state.step = "onride"; st.rerun()
+    elif st.session_state.step == "onride":
+        st.markdown(f"<div class='card'><h3>🚕 ड्रायव्हर {st.session_state.dist_left:.1f} किमी लांब आहे</h3></div>", unsafe_allow_html=True)
+        st.markdown(f'<a href="tel:{MY_NO}" class="btn-call">📞 कॉल ड्रायव्हर</a>', unsafe_allow_html=True)
+        if st.session_state.dist_left > 0.5:
+            if st.button("अपडेट करा 🔄"): st.session_state.dist_left -= 1.2; st.rerun()
+        else:
+            st.success("✅ ड्रायव्हर पोहोचला!"); 
+            if st.button("पूर्ण 🏁"): 
+                st.session_state.history.append(st.session_state.current_ride)
+                st.session_state.step = "search"; st.session_state.dist_left = 5.0; st.balloons(); st.rerun()
 
-    elif choice == "📜 प्रवासाचा इतिहास":
-        st.subheader("तुमचे मागील प्रवास 📜")
-        history = [
-            {"तारीख": "05 एप्रिल", "ठिकाण": "नाशिक रोड ते कॉलेज रोड", "भाडे": "₹180"},
-            {"तारीख": "02 एप्रिल", "ठिकाण": "पंचवटी ते सातपूर", "भाडे": "₹220"}
-        ]
-        st.table(history)
+# --- ८. रन लॉजिक ---
+if not st.session_state.is_auth: show_registration()
+elif st.session_state.step != "search": show_process()
+else: show_main()
 
-    elif choice == "👤 प्रोफाइल":
-        st.subheader("माझे प्रोफाईल 👤")
-        st.write(f"**नाव:** {st.session_state.user_name}")
-        st.write("**शहर:** नाशिक, महाराष्ट्र")
-        st.info("प्रोफाईल अपडेट करण्यासाठी कस्टमर केअरला संपर्क करा.")
 
-# --- ६. मेन रन लॉजिक ---
-if not st.session_state.is_auth:
-    show_login()
-else:
-    show_home()
