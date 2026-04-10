@@ -1,0 +1,178 @@
+import streamlit as st
+import pandas as pd
+import os
+import urllib.parse
+from datetime import datetime
+
+# १. ॲप कॉन्फिगरेशन
+st.set_page_config(page_title="Balaji Logistics", layout="centered")
+
+# २. प्रोफेशनल CSS डिझाइन (Clean & Premium Look)
+st.markdown("""
+    <style>
+    .header-container { text-align: center; padding: 20px; border-bottom: 4px solid #00416A; background: #fff; }
+    .main-title { color: #00416A; font-size: 32px; font-weight: 900; letter-spacing: 2px; margin-bottom: 0px; }
+    .sub-title { color: #555; font-size: 14px; font-weight: bold; text-transform: uppercase; }
+    
+    .main-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eee; margin-bottom: 20px; }
+    
+    .category-label { background: #00416A; color: white; padding: 8px 20px; border-radius: 50px; margin: 20px 0; font-weight: bold; display: inline-block; font-size: 14px; }
+    
+    .stButton>button { background-color: #00416A !important; color: white !important; border-radius: 6px; height: 3em; transition: 0.3s; }
+    .stButton>button:hover { background-color: #002a45 !important; transform: translateY(-2px); }
+    
+    .payment-box { background-color: #f0f7ff; border: 2px dashed #00416A; padding: 20px; border-radius: 10px; text-align: center; margin-top: 15px; }
+    .pay-number { color: #5f259f; font-size: 26px; font-weight: 800; display: block; margin: 10px 0; }
+    
+    .wa-btn { background-color: #25D366; color: white !important; padding: 12px; border-radius: 8px; text-align: center; display: block; text-decoration: none; font-weight: bold; margin-top: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ३. लोगो विभाग
+st.markdown("""
+    <div class="header-container">
+        <h1 class="main-title">SHREE BALAJI</h1>
+        <p class="sub-title">Logistics, Tours & Travels</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ४. डेटाबेस सेटअप
+USER_DB = "users_data.csv"
+BOOKING_DB = "bookings_data.csv"
+
+for db, cols in [(USER_DB, ["Name", "Mobile", "Password"]), (BOOKING_DB, ["Time", "User", "Mobile", "From", "To", "Vehicle", "KM", "Fare", "Payment", "UTR"])]:
+    if not os.path.exists(db):
+        pd.DataFrame(columns=cols).to_csv(db, index=False)
+
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'selected_car' not in st.session_state: st.session_state.selected_car = None
+
+# --- लॉगिन / रजिस्ट्रेशन ---
+if not st.session_state.logged_in:
+    auth = st.radio("निवडा:", ["Login", "Register"], horizontal=True)
+    with st.container():
+        st.markdown('<div class="main-card">', unsafe_allow_html=True)
+        if auth == "Register":
+            name = st.text_input("पूर्ण नाव")
+        u_mob = st.text_input("मोबाईल नंबर")
+        u_pwd = st.text_input("पासवर्ड", type="password")
+
+        if st.button("प्रवेश करा"):
+            df = pd.read_csv(USER_DB)
+            if auth == "Register":
+                if name and u_mob and u_pwd:
+                    if str(u_mob) in df['Mobile'].astype(str).values:
+                        st.error("हा नंबर आधीच नोंदणीकृत आहे!")
+                    else:
+                        pd.DataFrame([[name, u_mob, u_pwd]], columns=["Name", "Mobile", "Password"]).to_csv(USER_DB, mode='a', header=False, index=False)
+                        st.success("नोंदणी यशस्वी! आता लॉगिन करा.")
+                else: st.warning("सर्व माहिती भरा!")
+            else:
+                user = df[(df['Mobile'].astype(str) == str(u_mob)) & (df['Password'].astype(str) == str(u_pwd))]
+                if not user.empty:
+                    st.session_state.logged_in = True
+                    st.session_state.u_name = user.iloc[0]['Name']
+                    st.session_state.u_mob = u_mob
+                    st.rerun()
+                else: st.error("नंबर किंवा पासवर्ड चुकीचा!")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# --- मुख्य ॲप ---
+else:
+    st.sidebar.markdown(f"### 👤 नमस्ते, {st.session_state.u_name}")
+    menu = st.sidebar.selectbox("मेनू", ["🚕 गाडी बुक करा", "📜 हिस्ट्री", "🚪 Logout"])
+
+    if menu == "🚪 Logout":
+        st.session_state.logged_in = False
+        st.rerun()
+
+    elif menu == "📜 हिस्ट्री":
+        st.title("📜 हिस्ट्री")
+        df_b = pd.read_csv(BOOKING_DB)
+        history = df_b[df_b['Mobile'].astype(str) == str(st.session_state.u_mob)]
+        if history.empty:
+            st.info("तुमची कोणतीही हिस्ट्री नाही.")
+        else:
+            st.dataframe(history, use_container_width=True)
+
+    else:
+        if st.session_state.selected_car is None:
+            car_categories = {
+                "🚗 Mini": {
+                    "WagonR": {"rate": 11, "seats": "4+1", "img": "https://imgd.aeplcdn.com/664x374/n/cw/ec/140591/wagon-r-exterior-right-front-three-quarter-5.jpeg"},
+                    "Celerio": {"rate": 11, "seats": "4+1", "img": "https://imgd.aeplcdn.com/664x374/n/cw/ec/102663/celerio-exterior-right-front-three-quarter.jpeg"}
+                },
+                "🚕 Sedan": {
+                    "Swift Dzire": {"rate": 12, "seats": "4+1", "img": "https://imgd.aeplcdn.com/664x374/n/cw/ec/170173/dzire-exterior-right-front-three-quarter-3.jpeg"},
+                    "Hyundai Aura": {"rate": 13, "seats": "4+1", "img": "https://imgd.aeplcdn.com/664x374/n/cw/ec/129753/aura-exterior-right-front-three-quarter-2.jpeg"},
+                },
+                "🚙 Prime / SUV": {
+                    "Ertiga": {"rate": 15, "seats": "6+1", "img": "https://imgd.aeplcdn.com/664x374/n/cw/ec/44701/ertiga-exterior-right-front-three-quarter-27.jpeg"},
+                    "Innova Crysta": {"rate": 22, "seats": "7+1", "img": "https://imgd.aeplcdn.com/664x374/n/cw/ec/131131/innova-crysta-exterior-right-front-three-quarter-3.jpeg"},
+                },
+                "🚌 Large Groups": {
+                    "Tempo Traveller": {"rate": 25, "seats": "17+1", "img": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Force_Traveller.jpg/640px-Force_Traveller.jpg"}
+                }
+            }
+
+            for cat, car_list in car_categories.items():
+                st.markdown(f'<div class="category-label">{cat}</div>', unsafe_allow_html=True)
+                for c_name, c_info in car_list.items():
+                    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+                    st.image(c_info["img"], use_container_width=True)
+                    st.subheader(f"{c_name} ({c_info['seats']} Seats)")
+                    st.write(f"**दर:** ₹{c_info['rate']}/km")
+                    if st.button(f"निवडा {c_name}", key=c_name):
+                        st.session_state.selected_car = c_name
+                        st.session_state.car_rate = c_info['rate']
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.button("⬅️ मागे जा", on_click=lambda: st.session_state.update({"selected_car": None}))
+            st.markdown('<div class="main-card">', unsafe_allow_html=True)
+            st.header(f"बुकिंग: {st.session_state.selected_car}")
+            p_up = st.text_input("पिकअप पॉईंट")
+            d_off = st.text_input("ड्रॉप पॉईंट")
+            km = st.number_input("अंदाजे अंतर (KM)", min_value=1, value=10)
+            fare = km * st.session_state.car_rate
+            st.metric("अंदाजित भाडे", f"₹{fare}")
+
+            pay = st.radio("पेमेंट मोड निवडा:", ["Cash", "PhonePe / Online"], horizontal=True)
+            utr = "N/A"
+            if pay == "PhonePe / Online":
+                try:
+                    st.image("1000327329.png", caption="स्कॅन करून पेमेंट करा", width=300)
+                except:
+                    st.info("क्यूआर कोड फोटो उपलब्ध नाही.")
+
+                st.markdown(f"""
+                    <div class="payment-box">
+                        <span style="color: #666;">PhonePe Number</span>
+                        <span class="pay-number">9309146504</span>
+                        <small>पेमेंट झाल्यावर खाली UTR नंबर टाका</small>
+                    </div>
+                """, unsafe_allow_html=True)
+                utr_input = st.text_input("UTR / Transaction ID टाका")
+                if utr_input: utr = utr_input
+
+            if st.button("Confirm Booking ✅"):
+                if p_up and d_off:
+                    data = [datetime.now().strftime("%Y-%m-%d %H:%M"), st.session_state.u_name, st.session_state.u_mob, p_up, d_off, st.session_state.selected_car, km, fare, pay, utr]
+                    pd.DataFrame([data]).to_csv(BOOKING_DB, mode='a', header=False, index=False)
+
+                    msg = (
+                        f"*नवीन बुकिंग आले आहे!*%0A"
+                        f"नाव: {st.session_state.u_name}%0A"
+                        f"मोबाईल: {st.session_state.u_mob}%0A"
+                        f"गाडी: {st.session_state.selected_car}%0A"
+                        f"Pickup: {p_up}%0A"
+                        f"Drop: {d_off}%0A"
+                        f"भाडे: ₹{fare}%0A"
+                        f"पेमेंट: {pay}%0A"
+                        f"UTR: {utr}"
+                    )
+                    url = f"https://wa.me/919767981986?text={msg}"
+                    st.success("बुकिंग यशस्वी झाले!")
+                    st.markdown(f'<a href="{url}" target="_blank" class="wa-btn">WhatsApp वर बुकिंग पाठवा</a>', unsafe_allow_html=True)
+                else: st.error("कृपया सर्व माहिती भरा!")
+            st.markdown('</div>', unsafe_allow_html=True)
