@@ -1,4 +1,4 @@
-streamlit
-folium
-streamlit-folium
 
+
+streamlit
+streamlit-option-menu
