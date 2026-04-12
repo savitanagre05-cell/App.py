@@ -147,8 +147,39 @@ else:
                     
                     encoded_msg = urllib.parse.quote(raw_msg)
                     st.success(f"बुकिंग झाले! भाडे: ₹{fare}")
-                    if pay == "Online": st.warning(f"PhonePe: {PHONEPE_NO}")
-                    st.markdown(f"### [🚀 व्हॉट्सॲपवर पाठवा](https://wa.me/{WA_LINK_NO}?text={encoded_msg})")
+
+if pay == "Online":
+    st.warning(f"PhonePe: {PHONEPE_NO}")
+
+    # 💳 PhonePe Pay Button
+    upi_link = f"upi://pay?pa={PHONEPE_NO}&pn=Balaji%20Logistics&am={fare}&cu=INR"
+
+    st.markdown(f"""
+    <a href="{upi_link}">
+        <button style="background-color:#5f259f;color:white;padding:10px 20px;border:none;border-radius:10px;font-size:16px;">
+            💳 Pay with PhonePe
+        </button>
+    </a>
+    """, unsafe_allow_html=True)
+
+    # 📸 Screenshot Upload
+    st.markdown("### 📸 Payment Screenshot Upload")
+
+    uploaded_file = st.file_uploader("Screenshot upload करा", type=["png", "jpg", "jpeg"])
+
+    if uploaded_file is not None:
+        if not os.path.exists("payment_screenshots"):
+            os.makedirs("payment_screenshots")
+
+        file_path = os.path.join("payment_screenshots", f"{st.session_state.user}_{int(time.time())}.png")
+
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+        st.success("✅ Screenshot upload झाला!")
+
+# 📲 WhatsApp button (same)
+st.markdown(f"### [🚀 व्हॉट्सॲपवर पाठवा](https://wa.me/{WA_LINK_NO}?text={encoded_msg})")
                 else:
                     st.error("कृपया पिकअप आणि ड्रॉप दोन्ही टाका!")
 
