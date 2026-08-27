@@ -25,8 +25,8 @@ UPLOAD_DIR = Path("uploads")
 RATES = {
     "WagonR": 11,
     "Swift Dzire": 13,
-    "Ertiga": 18,
-    "Innova": 24,
+    "Ertiga": 14,
+    "Innova": 19,
     "Tempo Traveller": 35,
 }
 
